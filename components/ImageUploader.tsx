@@ -28,7 +28,7 @@ export default function ImageUploader({
 }: {
   kind: Kind;
   refId?: string;
-  role?: "thumbnail" | "gallery";
+  role?: "thumbnail" | "gallery" | "hover";
   onUploaded: (url: string) => void;
   label?: string;
 }) {
