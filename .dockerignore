@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.husky
+.vscode
+.idea
+coverage
+tests
+.env
+.env.*
+Dockerfile
+.dockerignore
+*.log

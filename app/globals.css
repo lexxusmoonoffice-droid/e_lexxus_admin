@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { font-size: 14px; }
+html, body { background: #f7f7f8; color: #0a0a0a; }
+
+.logo-wordmark { font-weight: 800; letter-spacing: 0.3em; }
+
+.btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition; }
+.btn-primary { @apply btn bg-black text-white hover:bg-neutral-800; }
+.btn-outline { @apply btn border border-neutral-300 hover:bg-neutral-100; }
+.btn-danger  { @apply btn bg-red-500 text-white hover:bg-red-600; }
+
+.card { @apply bg-white rounded-xl border border-neutral-200; }
+.input { @apply w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-black bg-white; }
+.label { @apply block text-xs font-medium text-neutral-600 mb-1; }
+.table-th { @apply text-left px-5 py-3 font-medium text-neutral-600 text-xs uppercase tracking-wider; }
+.table-td { @apply px-5 py-3 text-sm border-t border-neutral-100; }
