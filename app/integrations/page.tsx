@@ -7,6 +7,12 @@ import Topbar from "@/components/Topbar";
 import { api, apiError } from "@/lib/api";
 
 type Snapshot = {
+  payments: {
+    zohoEnabled: boolean;
+    stripeEnabled: boolean;
+    razorpayEnabled: boolean;
+    defaultProvider: "zoho" | "stripe" | "razorpay";
+  };
   b2: {
     keyId: string;
     appKeySet: boolean;
@@ -23,10 +29,22 @@ type Snapshot = {
     clientSecretSet: boolean;
     refreshTokenSet: boolean;
     webhookSecretSet: boolean;
+    signingKeySet: boolean;
     apiBase: string;
     accountsHost: string;
     connectedAt: string | null;
     scope: string | null;
+  };
+  stripe: {
+    secretKeySet: boolean;
+    webhookSecretSet: boolean;
+    currency: string;
+  };
+  razorpay: {
+    keyId: string;
+    keySecretSet: boolean;
+    webhookSecretSet: boolean;
+    currency: string;
   };
   limits: {
     downloadTokenTtlDays: number;
@@ -84,7 +102,7 @@ function IntegrationsInner() {
     } finally { setBusy(null); }
   }
 
-  async function test(kind: "b2" | "smtp" | "cloudflare", body?: Record<string, unknown>) {
+  async function test(kind: "b2" | "smtp" | "cloudflare" | "stripe" | "razorpay", body?: Record<string, unknown>) {
     setBusy(`test-${kind}`);
     try {
       const { data } = await api.post(`/admin/integrations/test/${kind}`, body || {});
@@ -137,8 +155,11 @@ function IntegrationsInner() {
           Saves take effect on the next backend request — no restart.
         </p>
 
-        <B2Section snap={snap} put={put} test={test} busy={busy} />
+        <PaymentProvidersSection snap={snap} put={put} busy={busy} />
         <ZohoSection snap={snap} connect={connectZoho} disconnect={disconnectZoho} put={put} busy={busy} />
+        <StripeSection snap={snap} put={put} test={test} busy={busy} />
+        <RazorpaySection snap={snap} put={put} test={test} busy={busy} />
+        <B2Section snap={snap} put={put} test={test} busy={busy} />
         <SmtpSection snap={snap} put={put} test={test} busy={busy} />
         <CloudflareSection snap={snap} put={put} test={test} busy={busy} />
         <LimitsSection snap={snap} put={put} busy={busy} />
@@ -457,6 +478,222 @@ function ObservabilitySection({ snap, put, busy }: any) {
     <Card title="Observability" status={<StatusPill ok={snap.observability.sentryDsnSet} />}>
       <Field label="Sentry DSN" value={dsn} onChange={setDsn} alreadySet={snap.observability.sentryDsnSet} type="password" placeholder={snap.observability.sentryDsnSet ? "•••• already set — paste to replace" : "https://…@sentry.io/…"} help="Takes effect on next backend restart (Sentry init is boot-time)." error={error} />
       <button disabled={busy === "observability" || !!error} onClick={() => put("observability", { sentryDsn: dsn }, "Sentry DSN")} className="btn-primary disabled:opacity-50">Save</button>
+    </Card>
+  );
+}
+
+/* ─────────── Payment provider toggles ─────────── */
+
+function PaymentProvidersSection({ snap, put, busy }: any) {
+  const p = snap.payments || {};
+  const [zohoEnabled, setZohoEnabled] = useState<boolean>(!!p.zohoEnabled);
+  const [stripeEnabled, setStripeEnabled] = useState<boolean>(!!p.stripeEnabled);
+  const [razorpayEnabled, setRazorpayEnabled] = useState<boolean>(!!p.razorpayEnabled);
+  const [defaultProvider, setDefaultProvider] = useState<string>(p.defaultProvider || "zoho");
+
+  useEffect(() => {
+    setZohoEnabled(!!snap.payments?.zohoEnabled);
+    setStripeEnabled(!!snap.payments?.stripeEnabled);
+    setRazorpayEnabled(!!snap.payments?.razorpayEnabled);
+    setDefaultProvider(snap.payments?.defaultProvider || "zoho");
+  }, [snap]);
+
+  const activeCount = [zohoEnabled, stripeEnabled, razorpayEnabled].filter(Boolean).length;
+
+  function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+    return (
+      <label className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 bg-neutral-50 cursor-pointer select-none">
+        <span className="text-sm font-medium">{label}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          onClick={() => onChange(!checked)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? "bg-black" : "bg-neutral-300"}`}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
+        </button>
+      </label>
+    );
+  }
+
+  return (
+    <Card title="Payment providers">
+      <p className="text-xs text-neutral-500">Enable or disable each gateway. The default provider handles new checkouts. Credentials are managed from the backend <code className="bg-neutral-100 px-1">.env</code> file.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Toggle label="Zoho Payments" checked={zohoEnabled} onChange={setZohoEnabled} />
+        <Toggle label="Stripe" checked={stripeEnabled} onChange={setStripeEnabled} />
+        <Toggle label="Razorpay" checked={razorpayEnabled} onChange={setRazorpayEnabled} />
+      </div>
+      <div>
+        <label className="block">
+          <span className="label">Default provider</span>
+          <select
+            className="input"
+            value={defaultProvider}
+            onChange={(e) => setDefaultProvider(e.target.value)}
+          >
+            {zohoEnabled && <option value="zoho">Zoho Payments</option>}
+            {stripeEnabled && <option value="stripe">Stripe</option>}
+            {razorpayEnabled && <option value="razorpay">Razorpay</option>}
+            {!zohoEnabled && !stripeEnabled && !razorpayEnabled && (
+              <option value="" disabled>No provider enabled</option>
+            )}
+          </select>
+          <p className="text-xs text-neutral-500 mt-1">New checkout sessions use this provider.</p>
+        </label>
+      </div>
+      {activeCount === 0 && (
+        <p className="text-xs text-rose-600 bg-rose-50 rounded p-2">⚠ No payment provider is enabled — customers cannot check out.</p>
+      )}
+      <button
+        disabled={busy === "payments"}
+        onClick={() => put("payments", { zohoEnabled, stripeEnabled, razorpayEnabled, defaultProvider }, "Payment settings")}
+        className="btn-primary disabled:opacity-50"
+      >
+        {busy === "payments" ? "Saving…" : "Save"}
+      </button>
+    </Card>
+  );
+}
+
+/* ─────────── Stripe section ─────────── */
+
+function StripeSection({ snap, put, test, busy }: any) {
+  const s = snap.stripe || {};
+  const [secretKey, setSecretKey] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [currency, setCurrency] = useState(s.currency || "inr");
+
+  useEffect(() => {
+    setCurrency(snap.stripe?.currency || "inr");
+  }, [snap]);
+
+  const currencyError = currency && !/^[a-z]{3}$/i.test(currency) ? "3-letter ISO code (e.g. inr)" : null;
+  const canTest = s.secretKeySet;
+
+  return (
+    <Card title="Payments — Stripe" status={<StatusPill ok={s.secretKeySet} okLabel="Key set" offLabel="Not configured" />}>
+      <p className="text-xs text-neutral-500">
+        Credentials set here are stored in the database and take priority over <code className="bg-neutral-100 px-1">.env</code> values at runtime.
+        Leave secret fields blank to keep the current value.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Field
+          label="Secret key"
+          alreadySet={s.secretKeySet}
+          value={secretKey}
+          onChange={setSecretKey}
+          type="password"
+          placeholder={s.secretKeySet ? "•••• already set" : "sk_live_… or sk_test_…"}
+          help="Never share this key publicly."
+        />
+        <Field
+          label="Webhook secret"
+          alreadySet={s.webhookSecretSet}
+          value={webhookSecret}
+          onChange={setWebhookSecret}
+          type="password"
+          placeholder={s.webhookSecretSet ? "•••• already set" : "whsec_…"}
+          help={`Webhook URL: /api/payments/webhook/stripe`}
+        />
+        <label className="block">
+          <span className="label">Currency <span className="text-[10px] text-neutral-400 ml-1">3-letter ISO 4217 lowercase</span></span>
+          <input className={`input ${currencyError ? "border-rose-500" : ""}`} value={currency} onChange={(e) => setCurrency(e.target.value.toLowerCase())} placeholder="inr" maxLength={3} />
+          {currencyError && <p className="text-xs text-rose-600 mt-1">{currencyError}</p>}
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <button
+          disabled={busy === "stripe" || !!currencyError}
+          onClick={() => put("stripe", { secretKey: secretKey || undefined, webhookSecret: webhookSecret || undefined, currency }, "Stripe")}
+          className="btn-primary disabled:opacity-50"
+        >
+          {busy === "stripe" ? "Saving…" : "Save"}
+        </button>
+        <button
+          disabled={busy === "test-stripe" || !canTest}
+          title={!canTest ? "Save secret key first" : undefined}
+          onClick={() => test("stripe")}
+          className="btn-outline disabled:opacity-50"
+        >
+          {busy === "test-stripe" ? "Testing…" : "Verify credentials"}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/* ─────────── Razorpay section ─────────── */
+
+function RazorpaySection({ snap, put, test, busy }: any) {
+  const r = snap.razorpay || {};
+  const [keyId, setKeyId] = useState(r.keyId || "");
+  const [keySecret, setKeySecret] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [currency, setCurrency] = useState(r.currency || "INR");
+
+  useEffect(() => {
+    setKeyId(snap.razorpay?.keyId || "");
+    setCurrency(snap.razorpay?.currency || "INR");
+  }, [snap]);
+
+  const currencyError = currency && !/^[a-z]{3}$/i.test(currency) ? "3-letter ISO code (e.g. INR)" : null;
+  const canTest = !!r.keyId && r.keySecretSet;
+
+  return (
+    <Card title="Payments — Razorpay" status={<StatusPill ok={!!r.keyId && r.keySecretSet} okLabel="Credentials set" offLabel="Not configured" />}>
+      <p className="text-xs text-neutral-500">
+        Razorpay uses a frontend widget — the public Key ID is sent to the browser (safe).
+        The Key Secret stays server-side. Webhook URL: <code className="bg-neutral-100 px-1">/api/payments/webhook/razorpay</code>
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Field
+          label="Key ID (public)"
+          value={keyId}
+          onChange={setKeyId}
+          placeholder="rzp_live_… or rzp_test_…"
+          help="Safe to expose — sent to the browser for the widget."
+        />
+        <Field
+          label="Key Secret"
+          alreadySet={r.keySecretSet}
+          value={keySecret}
+          onChange={setKeySecret}
+          type="password"
+          placeholder={r.keySecretSet ? "•••• already set" : "Your Razorpay key secret"}
+        />
+        <Field
+          label="Webhook secret"
+          alreadySet={r.webhookSecretSet}
+          value={webhookSecret}
+          onChange={setWebhookSecret}
+          type="password"
+          placeholder={r.webhookSecretSet ? "•••• already set" : "From Razorpay dashboard → Webhooks"}
+        />
+        <label className="block">
+          <span className="label">Currency <span className="text-[10px] text-neutral-400 ml-1">3-letter ISO 4217 uppercase</span></span>
+          <input className={`input ${currencyError ? "border-rose-500" : ""}`} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} placeholder="INR" maxLength={3} />
+          {currencyError && <p className="text-xs text-rose-600 mt-1">{currencyError}</p>}
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <button
+          disabled={busy === "razorpay" || !!currencyError}
+          onClick={() => put("razorpay", { keyId: keyId || undefined, keySecret: keySecret || undefined, webhookSecret: webhookSecret || undefined, currency }, "Razorpay")}
+          className="btn-primary disabled:opacity-50"
+        >
+          {busy === "razorpay" ? "Saving…" : "Save"}
+        </button>
+        <button
+          disabled={busy === "test-razorpay" || !canTest}
+          title={!canTest ? "Save Key ID + Key Secret first" : undefined}
+          onClick={() => test("razorpay")}
+          className="btn-outline disabled:opacity-50"
+        >
+          {busy === "test-razorpay" ? "Testing…" : "Verify credentials"}
+        </button>
+      </div>
     </Card>
   );
 }
