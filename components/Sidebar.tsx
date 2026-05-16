@@ -18,6 +18,7 @@ import {
   Star,
   Bell,
   UserCircle,
+  HardDrive,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/lib/auth";
@@ -34,6 +35,7 @@ const nav = [
   { icon: Tag, label: "Brands", href: "/brands" },
   { icon: FileText, label: "Blog", href: "/blog" },
   { icon: ScrollText, label: "Audit log", href: "/audit" },
+  { icon: HardDrive, label: "Storage", href: "/storage" },
   { icon: Plug, label: "Integrations", href: "/integrations" },
   { icon: Settings, label: "Settings", href: "/settings" },
   { icon: Bell, label: "Notifications", href: "/notifications" },

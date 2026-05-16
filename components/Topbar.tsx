@@ -8,7 +8,7 @@ import { apiGet } from "@/lib/api";
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-export default function Topbar({ title }: { title: string }) {
+export default function Topbar({ title, actions }: { title: string; actions?: React.ReactNode }) {
   const { user } = useAuth();
   const [unread, setUnread] = useState(0);
 
@@ -39,7 +39,10 @@ export default function Topbar({ title }: { title: string }) {
 
   return (
     <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-neutral-200 shrink-0">
-      <h1 className="text-xl font-semibold">{title}</h1>
+      <div className="flex items-center gap-4">
+        <h1 className="text-xl font-semibold">{title}</h1>
+        {actions && <div className="hidden sm:flex">{actions}</div>}
+      </div>
       <div className="flex items-center gap-4">
         <div className="hidden md:flex items-center bg-neutral-100 rounded-full px-4 py-2 w-72">
           <Search className="w-4 h-4 text-neutral-500" />
