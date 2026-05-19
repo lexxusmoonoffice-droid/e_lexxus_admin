@@ -13,6 +13,30 @@ export default function AdminLoginPage() {
   );
 }
 
+/** Maps HTTP status (or undefined for network errors) to a human-friendly message. */
+function loginErrorMessage(status: number | undefined, raw: string): string {
+  switch (status) {
+    case 400:
+      return "Please check your email and password format.";
+    case 401:
+      return "Incorrect email or password.";
+    case 403:
+      // Could be "not admin" or "account suspended"
+      if (raw.toLowerCase().includes("suspended")) return "This account has been suspended. Contact support.";
+      if (raw.toLowerCase().includes("not an admin")) return "That account doesn't have admin access.";
+      return raw || "Access denied.";
+    case 429:
+      return "Too many login attempts. Please wait 15 minutes before trying again.";
+    case 500:
+    case 502:
+    case 503:
+      return "The server encountered an error. Please try again in a moment.";
+    default:
+      if (!status) return "Unable to reach the server. Check your connection and try again.";
+      return raw || "Login failed. Please try again.";
+  }
+}
+
 function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -24,7 +48,7 @@ function LoginInner() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(
-    errorParam === "not-admin" ? "That account is not an admin." : null,
+    errorParam === "not-admin" ? "That account doesn't have admin access." : null,
   );
 
   async function onSubmit(e: React.FormEvent) {
@@ -36,9 +60,10 @@ function LoginInner() {
       toast.success("Welcome back");
       router.push(nextPath);
     } catch (err) {
-      const msg = (err as Error).message || "Login failed";
+      const e = err as Error & { status?: number };
+      const msg = loginErrorMessage(e.status, e.message);
       setError(msg);
-      toast.error(msg);
+      toast.error(msg, { duration: e.status === 429 ? 6000 : 3000 });
     } finally {
       setLoading(false);
     }
@@ -81,8 +106,20 @@ function LoginInner() {
               autoComplete="current-password"
             />
           </div>
-          {error && <div className="text-xs text-rose-600">{error}</div>}
-          <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-50">
+
+          {error && (
+            <div className={`text-xs rounded-lg px-3 py-2 ${
+              error.includes("Too many") ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-rose-50 text-rose-600 border border-rose-200"
+            }`}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary w-full disabled:opacity-50"
+          >
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>

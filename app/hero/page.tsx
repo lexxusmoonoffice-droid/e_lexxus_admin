@@ -21,6 +21,7 @@ import { Plus, Edit, Trash2, Eye, EyeOff, GripVertical } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import Drawer from "@/components/Drawer";
 import ImageUploader from "@/components/ImageUploader";
+import { confirm } from "@/components/ConfirmDialog";
 import {
   useAdminHeroSlides,
   useCreateHeroSlide,
@@ -44,7 +45,13 @@ export default function HeroSlidesPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   async function onDelete(s: ApiHeroSlide) {
-    if (!confirm("Delete this slide?")) return;
+    const ok = await confirm({
+      title: "Delete this slide?",
+      message: "The slide will be removed from the homepage carousel.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await delM.mutateAsync(s.id);
       toast.success("Deleted");

@@ -125,7 +125,13 @@ function IntegrationsInner() {
   }
 
   async function disconnectZoho() {
-    if (!confirm("Disconnect Zoho? Payments will stop working until reconnected.")) return;
+    const ok = await confirm({
+      title: "Disconnect Zoho?",
+      message: "Payments will stop working until you reconnect.",
+      confirmText: "Disconnect",
+      variant: "danger",
+    });
+    if (!ok) return;
     setBusy("zoho-disconnect");
     try {
       await api.post("/zoho/disconnect");

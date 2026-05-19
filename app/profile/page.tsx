@@ -5,7 +5,8 @@ import toast from "react-hot-toast";
 import { User, Lock, Save } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import { useAuth } from "@/lib/auth";
-import { apiPost, apiPut, apiError } from "@/lib/api";
+import { apiPut, apiError } from "@/lib/api";
+import { confirm } from "@/components/ConfirmDialog";
 
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
@@ -28,12 +29,35 @@ export default function ProfilePage() {
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
-    if (!profile.name.trim()) { toast.error("Name is required"); return; }
+    const name = profile.name.trim();
+    const email = profile.email.trim().toLowerCase();
+    if (!name) { toast.error("Name is required"); return; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Valid email is required"); return;
+    }
+    const emailChanged = email !== (user?.email || "").toLowerCase();
+    if (emailChanged) {
+      const ok = await confirm({
+        title: "Change your email?",
+        message: `A confirmation link will be sent to ${email}. Your email won't change until you click it.`,
+        confirmText: "Send confirmation",
+        variant: "warning",
+      });
+      if (!ok) return;
+    }
+
     setProfileBusy(true);
     try {
-      await apiPost("/users/me", { name: profile.name.trim() });
+      const payload: { name: string; email?: string } = { name };
+      if (emailChanged) payload.email = email;
+      await apiPut("/users/me", payload);
       await refresh();
-      toast.success("Profile updated");
+      toast.success(
+        emailChanged
+          ? `Confirmation sent to ${email} — click the link to complete the change`
+          : "Profile updated",
+        { duration: emailChanged ? 6000 : 3000 }
+      );
     } catch (err) {
       toast.error(apiError(err, "Update failed"));
     } finally {
@@ -48,7 +72,7 @@ export default function ProfilePage() {
     if (pwd.next !== pwd.confirm) { toast.error("Passwords don't match"); return; }
     setPwdBusy(true);
     try {
-      await apiPost("/users/me/password", { currentPassword: pwd.current, newPassword: pwd.next });
+      await apiPut("/users/me/password", { currentPassword: pwd.current, newPassword: pwd.next });
       setPwd({ current: "", next: "", confirm: "" });
       toast.success("Password changed");
     } catch (err) {
@@ -96,12 +120,16 @@ export default function ProfilePage() {
               <label className="block">
                 <span className="label">Email</span>
                 <input
-                  className="input bg-neutral-50 cursor-not-allowed"
+                  className="input"
+                  type="email"
                   value={profile.email}
-                  readOnly
-                  title="Email cannot be changed here"
+                  onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+                  autoComplete="email"
+                  required
                 />
-                <p className="text-xs text-neutral-400 mt-1">Contact support to change your email.</p>
+                <p className="text-xs text-neutral-400 mt-1">
+                  A confirmation link is sent to the new address before the change takes effect.
+                </p>
               </label>
               <button type="submit" disabled={profileBusy} className="btn-primary disabled:opacity-50 flex items-center gap-2">
                 <Save className="w-4 h-4" />

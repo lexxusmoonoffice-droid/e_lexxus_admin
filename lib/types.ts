@@ -40,9 +40,10 @@ export interface ApiCategory {
   name: string;
   slug: string;
   parent?: string | null;
+  image?: string | null;
   productCount?: number;
   order?: number;
-  status?: string;
+  status?: "active" | "hidden";
   children?: ApiCategory[];
 }
 
@@ -53,6 +54,7 @@ export interface ApiProduct {
   description: string;
   brand?: ApiBrand | string | null;
   category?: ApiCategory | string;
+  subCategory?: ApiCategory | string | null;
   tags?: string[];
   price: number;
   currency?: string;
