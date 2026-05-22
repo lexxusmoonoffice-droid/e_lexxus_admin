@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import Topbar from "@/components/Topbar";
 import { api, apiError } from "@/lib/api";
+import { confirm } from "@/components/ConfirmDialog";
 
 type Snapshot = {
   payments: {
