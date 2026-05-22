@@ -5,6 +5,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { Star, Eye, EyeOff, Trash2, Search } from "lucide-react";
 import Topbar from "@/components/Topbar";
+import { confirm } from "@/components/ConfirmDialog";
 import {
   useAdminReviews,
   useSetReviewStatus,
@@ -40,7 +41,13 @@ export default function AdminReviewsPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm("Delete this review permanently? Prefer Hide for reversible moderation.")) return;
+    const ok = await confirm({
+      title: "Delete this review permanently?",
+      message: "Prefer Hide for reversible moderation — deletion cannot be undone.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(id);
       toast.success("Review deleted");

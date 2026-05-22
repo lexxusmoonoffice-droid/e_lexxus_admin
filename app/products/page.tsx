@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import StatusPill from "@/components/StatusPill";
+import { confirm } from "@/components/ConfirmDialog";
 import { useAdminProducts, useDeleteProduct, apiError } from "@/lib/hooks";
 
 const STATUSES = ["All", "published", "draft", "review", "removed"];
@@ -21,7 +22,13 @@ export default function ProductsPage() {
   const del = useDeleteProduct();
 
   async function onDelete(id: string, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return;
+    const ok = await confirm({
+      title: `Delete "${name}"?`,
+      message: "The product will be removed permanently.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(id);
       toast.success("Deleted");

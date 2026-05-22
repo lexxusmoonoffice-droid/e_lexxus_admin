@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { ArrowLeft, Mail, RotateCcw, CheckCircle2 } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import StatusPill from "@/components/StatusPill";
+import { confirm } from "@/components/ConfirmDialog";
 import {
   useAdminOrder,
   useRefundOrder,
@@ -41,7 +42,13 @@ export default function OrderDetailPage() {
   const buyer = typeof o.buyer === "string" ? null : o.buyer;
 
   async function markComplete() {
-    if (!confirm("Mark this order as paid?")) return;
+    const ok = await confirm({
+      title: "Mark this order as paid?",
+      message: "The buyer will see the order as completed and gain download access.",
+      confirmText: "Mark paid",
+      variant: "info",
+    });
+    if (!ok) return;
     try {
       await statusM.mutateAsync({ id: o.id, status: "paid" });
       toast.success("Marked paid");
@@ -52,7 +59,13 @@ export default function OrderDetailPage() {
 
   async function refund() {
     const reason = prompt("Refund reason (optional)?") || undefined;
-    if (!confirm("Refund this order? This revokes the download token.")) return;
+    const ok = await confirm({
+      title: "Refund this order?",
+      message: "This revokes the buyer's download token and cannot be undone.",
+      confirmText: "Refund",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await refundM.mutateAsync({ id: o.id, reason });
       toast.success("Refunded");

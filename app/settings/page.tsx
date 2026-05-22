@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import Topbar from "@/components/Topbar";
 import { useAdminSettings, useUpdateSettings, apiError } from "@/lib/hooks";
 import { api } from "@/lib/api";
+import { confirm } from "@/components/ConfirmDialog";
 import type { ApiSettings } from "@/lib/types";
 
 type ZohoStatus = {
@@ -68,7 +69,13 @@ function SettingsInner() {
     }
   }
   async function onDisconnect() {
-    if (!confirm("Disconnect Zoho? Payments will stop working until reconnected.")) return;
+    const ok = await confirm({
+      title: "Disconnect Zoho?",
+      message: "Payments will stop working until you reconnect.",
+      confirmText: "Disconnect",
+      variant: "danger",
+    });
+    if (!ok) return;
     setZohoBusy(true);
     try {
       await api.post("/zoho/disconnect");

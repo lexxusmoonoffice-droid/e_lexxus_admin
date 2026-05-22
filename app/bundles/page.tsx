@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Plus, Edit, Trash2, Package } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import StatusPill from "@/components/StatusPill";
+import { confirm } from "@/components/ConfirmDialog";
 import { useAdminBundles, useDeleteBundle, apiError } from "@/lib/hooks";
 
 export default function BundlesPage() {
@@ -12,7 +13,13 @@ export default function BundlesPage() {
   const del = useDeleteBundle();
 
   async function onDelete(id: string, name: string) {
-    if (!confirm(`Delete bundle "${name}"?`)) return;
+    const ok = await confirm({
+      title: `Delete bundle "${name}"?`,
+      message: "The bundle will be removed permanently.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(id);
       toast.success("Deleted");

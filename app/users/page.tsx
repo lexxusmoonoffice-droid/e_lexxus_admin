@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Eye, Ban } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import StatusPill from "@/components/StatusPill";
+import { confirm } from "@/components/ConfirmDialog";
 import { useAdminUsers, useSuspendUser, apiError } from "@/lib/hooks";
 
 export default function UsersPage() {
@@ -19,7 +20,16 @@ export default function UsersPage() {
 
   async function toggleSuspend(id: string, current: "active" | "suspended") {
     const next = current === "active" ? "suspended" : "active";
-    if (!confirm(`${next === "suspended" ? "Suspend" : "Reactivate"} this user?`)) return;
+    const suspending = next === "suspended";
+    const ok = await confirm({
+      title: suspending ? "Suspend this user?" : "Reactivate this user?",
+      message: suspending
+        ? "The user will no longer be able to sign in or access purchased content."
+        : "The user will regain access to their account.",
+      confirmText: suspending ? "Suspend" : "Reactivate",
+      variant: suspending ? "danger" : "info",
+    });
+    if (!ok) return;
     try {
       await suspend.mutateAsync({ id, status: next });
       toast.success(next === "suspended" ? "User suspended" : "User reactivated");

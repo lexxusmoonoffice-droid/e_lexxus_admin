@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { ImagePlus, X } from "lucide-react";
 import { api, apiError } from "@/lib/api";
 
-type Kind = "product" | "bundle" | "blog" | "hero" | "avatar" | "brand";
+type Kind = "product" | "bundle" | "blog" | "hero" | "avatar" | "brand" | "category";
 
 interface UploadResponse {
   fileKey: string;

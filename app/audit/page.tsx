@@ -8,10 +8,12 @@ import type { ApiUser } from "@/lib/types";
 export default function AuditLogPage() {
   const [page, setPage] = useState(1);
   const [entity, setEntity] = useState("");
+  const [search, setSearch] = useState("");
   const { data, isLoading } = useAuditLog({
     page,
     limit: 30,
     ...(entity ? { entity } : {}),
+    ...(search.trim() ? { q: search.trim() } : {}),
   });
 
   const rows = data?.data || [];
@@ -20,7 +22,13 @@ export default function AuditLogPage() {
     <>
       <Topbar title="Audit log" />
       <div className="p-6">
-        <div className="flex items-center gap-2 mb-5">
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
+          <input
+            placeholder="Search by actor, action, entity, ID or IP…"
+            className="input w-96"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          />
           <select
             className="input w-48"
             value={entity}
@@ -36,6 +44,15 @@ export default function AuditLogPage() {
             <option>Order</option>
             <option>User</option>
           </select>
+          {(search || entity) && (
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => { setSearch(""); setEntity(""); setPage(1); }}
+            >
+              Clear
+            </button>
+          )}
         </div>
         <div className="card overflow-hidden overflow-x-auto">
           <table className="w-full min-w-[720px]">
@@ -50,7 +67,9 @@ export default function AuditLogPage() {
             </thead>
             <tbody>
               {!isLoading && rows.length === 0 && (
-                <tr><td colSpan={5} className="table-td text-center text-neutral-400 py-12">No log entries.</td></tr>
+                <tr><td colSpan={5} className="table-td text-center text-neutral-400 py-12">
+                  {search || entity ? "No log entries match your filters." : "No log entries."}
+                </td></tr>
               )}
               {rows.map((r) => {
                 const actor = typeof r.actor === "string" ? null : (r.actor as ApiUser | undefined);

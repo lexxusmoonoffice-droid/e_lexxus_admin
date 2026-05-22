@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import StatusPill from "@/components/StatusPill";
+import { confirm } from "@/components/ConfirmDialog";
 import { useAdminBlog, useDeleteBlogPost, apiError } from "@/lib/hooks";
 
 export default function BlogListPage() {
@@ -12,7 +13,13 @@ export default function BlogListPage() {
   const del = useDeleteBlogPost();
 
   async function onDelete(id: string, title: string) {
-    if (!confirm(`Delete "${title}"?`)) return;
+    const ok = await confirm({
+      title: `Delete "${title}"?`,
+      message: "The post will be removed permanently.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(id);
       toast.success("Deleted");

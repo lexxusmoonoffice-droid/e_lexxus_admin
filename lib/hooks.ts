@@ -180,6 +180,15 @@ export function useUpdateCategory(id: string) {
   });
 }
 
+export function usePatchCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Partial<ApiCategory>) =>
+      apiPut<{ category: ApiCategory }>(`/admin/categories/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "categories"] }),
+  });
+}
+
 export function useDeleteCategory() {
   const qc = useQueryClient();
   return useMutation({

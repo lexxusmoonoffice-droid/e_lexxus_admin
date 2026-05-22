@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Search } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import Drawer from "@/components/Drawer";
 import ImageUploader from "@/components/ImageUploader";
+import { confirm } from "@/components/ConfirmDialog";
 import {
   useAdminBrands,
   useCreateBrand,
@@ -41,7 +42,13 @@ export default function BrandsPage() {
   }, [brands, q]);
 
   async function onDelete(b: ApiBrand) {
-    if (!confirm(`Delete "${b.name}"? Products that reference this brand will still exist but lose the reference.`)) return;
+    const ok = await confirm({
+      title: `Delete "${b.name}"?`,
+      message: "Products that reference this brand will still exist but lose the reference.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(b.id);
       toast.success("Brand deleted");
