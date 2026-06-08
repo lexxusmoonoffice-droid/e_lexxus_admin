@@ -307,8 +307,8 @@ export default function ProductForm({
               categoryId={form.category || ""}
               subCategoryId={form.subCategory || ""}
               error={errors.category}
-              onChangeCategory={(catId, subCatId) =>
-                setForm((f) => ({ ...f, category: catId, subCategory: subCatId || null }))
+              onChangeCategory={(topLevelId, subCatId) =>
+                setForm((f) => ({ ...f, category: topLevelId, subCategory: subCatId || null }))
               }
             />
             <Field label="Brand">
@@ -725,9 +725,16 @@ function CategorySelector({
   onChangeCategory: (directCatId: string, topLevelId: string) => void;
 }) {
   const topCats = allCats.filter((c) => !c.parent);
+
+  // Support both storage formats:
+  //   New format: categoryId = parent ID,  subCategoryId = child ID
+  //   Old format: categoryId = child  ID,  subCategoryId = ""
   const directCat = allCats.find((c) => c.id === categoryId);
-  const topCatId = directCat?.parent ? directCat.parent : categoryId;
-  const selectedSubId = directCat?.parent ? categoryId : "";
+  const topCatId = directCat?.parent
+    ? directCat.parent          // old format — categoryId is a child
+    : categoryId;               // new format — categoryId is already the parent
+  const selectedSubId = subCategoryId ||
+    (directCat?.parent ? categoryId : ""); // old format fallback
   const subCats = allCats.filter((c) => c.parent === topCatId);
 
   return (
@@ -750,8 +757,9 @@ function CategorySelector({
             className="input"
             value={selectedSubId}
             onChange={(e) => {
-              if (e.target.value) onChangeCategory(e.target.value, topCatId);
-              else onChangeCategory(topCatId, "");
+              // Always call back with (parentId, subcatId) so ProductForm
+              // correctly stores category = parent, subCategory = child.
+              onChangeCategory(topCatId, e.target.value || "");
             }}
           >
             <option value="">— All —</option>
