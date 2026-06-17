@@ -120,6 +120,7 @@ export default function HeroSlidesPage() {
       </div>
 
       <SlideDrawer
+        key={editing === null ? "closed" : editing === "new" ? "new" : editing.id}
         open={!!editing}
         mode={editing === "new" ? "new" : "edit"}
         existing={editing === "new" || !editing ? undefined : editing}

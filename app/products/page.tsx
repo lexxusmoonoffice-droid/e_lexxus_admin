@@ -1,17 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import Topbar from "@/components/Topbar";
-import StatusPill from "@/components/StatusPill";
 import { confirm } from "@/components/ConfirmDialog";
-import { useAdminProducts, useDeleteProduct, apiError } from "@/lib/hooks";
+import { useAdminProducts, useDeleteProduct, usePatchProductStatus, apiError } from "@/lib/hooks";
 
-const STATUSES = ["All", "published", "draft", "review", "removed"];
+const FILTER_STATUSES = ["All", "published", "draft", "review", "removed"];
+const STATUS_OPTIONS = ["published", "draft", "review", "removed"];
+
+const STATUS_STYLES: Record<string, string> = {
+  published: "text-emerald-700 bg-emerald-50 border-emerald-200",
+  draft: "text-neutral-600 bg-neutral-100 border-neutral-200",
+  review: "text-amber-700 bg-amber-50 border-amber-200",
+  removed: "text-rose-700 bg-rose-50 border-rose-200",
+};
 
 export default function ProductsPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
   const params: Record<string, unknown> = { limit: 50 };
@@ -20,8 +29,10 @@ export default function ProductsPage() {
 
   const { data, isLoading, isError } = useAdminProducts(params);
   const del = useDeleteProduct();
+  const patchStatus = usePatchProductStatus();
 
-  async function onDelete(id: string, name: string) {
+  async function onDelete(e: React.MouseEvent, id: string, name: string) {
+    e.stopPropagation();
     const ok = await confirm({
       title: `Delete "${name}"?`,
       message: "The product will be removed permanently.",
@@ -32,6 +43,16 @@ export default function ProductsPage() {
     try {
       await del.mutateAsync(id);
       toast.success("Deleted");
+    } catch (err) {
+      toast.error(apiError(err));
+    }
+  }
+
+  async function onStatusChange(e: React.ChangeEvent<HTMLSelectElement>, id: string) {
+    e.stopPropagation();
+    try {
+      await patchStatus.mutateAsync({ id, status: e.target.value });
+      toast.success("Status updated");
     } catch (err) {
       toast.error(apiError(err));
     }
@@ -52,7 +73,7 @@ export default function ProductsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
             <select className="input w-36" value={status} onChange={(e) => setStatus(e.target.value)}>
-              {STATUSES.map((s) => <option key={s}>{s}</option>)}
+              {FILTER_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
           <Link href="/products/new" className="btn-primary flex items-center gap-2">
@@ -69,8 +90,8 @@ export default function ProductsPage() {
             <thead className="bg-neutral-50">
               <tr>
                 <th className="table-th">Product</th>
-                <th className="table-th">Brand</th>
                 <th className="table-th">Category</th>
+                <th className="table-th">Subcategory</th>
                 <th className="table-th">Price</th>
                 <th className="table-th">File</th>
                 <th className="table-th">Status</th>
@@ -85,10 +106,14 @@ export default function ProductsPage() {
                 <tr><td colSpan={7} className="table-td text-center text-neutral-400 py-12">No products found</td></tr>
               )}
               {products.map((p) => {
-                const brand = typeof p.brand === "string" ? p.brand : p.brand?.name || "—";
                 const category = typeof p.category === "string" ? p.category : p.category?.name || "—";
+                const subCategory = typeof p.subCategory === "string" ? p.subCategory : (p.subCategory as { name?: string } | null)?.name || "—";
                 return (
-                  <tr key={p.id} className="hover:bg-neutral-50 transition">
+                  <tr
+                    key={p.id}
+                    onClick={() => router.push(`/products/${p.id}`)}
+                    className="hover:bg-neutral-50 transition cursor-pointer"
+                  >
                     <td className="table-td">
                       <div className="flex items-center gap-3">
                         {p.thumbnail && (
@@ -100,27 +125,32 @@ export default function ProductsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="table-td">{brand}</td>
                     <td className="table-td">{category}</td>
+                    <td className="table-td">{subCategory}</td>
                     <td className="table-td font-medium">
                       {p.price === 0 ? <span className="text-emerald-600">Free</span> : `₹${p.price.toLocaleString("en-IN")}`}
                     </td>
                     <td className="table-td text-neutral-400 text-xs">
                       {p.fileSizeMb ? `${p.fileSizeMb} Mb` : "—"}
                     </td>
-                    <td className="table-td"><StatusPill value={p.status} /></td>
-                    <td className="table-td">
-                      <div className="flex gap-2">
-                        <Link href={`/products/${p.id}`} className="p-1.5 hover:bg-neutral-100 rounded">
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => onDelete(p.id, p.title)}
-                          className="p-1.5 hover:bg-red-50 text-red-500 rounded"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <td className="table-td" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={p.status}
+                        onChange={(e) => onStatusChange(e, p.id)}
+                        className={`text-xs font-medium px-2 py-1 rounded border outline-none cursor-pointer ${STATUS_STYLES[p.status] ?? STATUS_STYLES.draft}`}
+                      >
+                        {STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="table-td" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => onDelete(e, p.id, p.title)}
+                        className="p-1.5 hover:bg-red-50 text-red-500 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 );
