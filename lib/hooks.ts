@@ -90,6 +90,15 @@ export function useUpdateProduct(id: string) {
   });
 }
 
+export function usePatchProductStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiPatch(`/admin/products/${id}/status`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "products"] }),
+  });
+}
+
 export function useDeleteProduct() {
   const qc = useQueryClient();
   return useMutation({

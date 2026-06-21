@@ -75,7 +75,17 @@ export default function ProductForm({
 
   // Upload progress keys: "thumb" | "hover" | "gallery-N" | "zip"
   const [prog, setProg] = useState<Record<string, number>>({});
-  const setP = (key: string, v: number) => setProg((p) => ({ ...p, [key]: v }));
+  const setP = (key: string, v: number) => {
+    setProg((p) => ({ ...p, [key]: v }));
+    setUploadSteps((prev) => prev.map((s) => s.key === key ? { ...s, progress: v } : s));
+  };
+
+  // Full-page upload steps for the progress overlay
+  type StepStatus = "pending" | "uploading" | "done" | "error";
+  type UploadStep = { key: string; label: string; status: StepStatus; progress: number };
+  const [uploadSteps, setUploadSteps] = useState<UploadStep[]>([]);
+  const setStep = (key: string, patch: Partial<UploadStep>) =>
+    setUploadSteps((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
 
   const brands = useAdminBrands();
   const cats = useAdminCategories();
@@ -187,9 +197,9 @@ export default function ProductForm({
     if (mode === "new") setPendingHover(makePending(file));
     else editUploadImg(file, "hover");
   }
-  function onGallerySelect(file: File) {
-    if (mode === "new") setPendingGallery((prev) => [...prev, makePending(file)]);
-    else editUploadImg(file, "gallery");
+  function onGallerySelect(files: File[]) {
+    if (mode === "new") setPendingGallery((prev) => [...prev, ...files.map(makePending)]);
+    else files.forEach((file) => editUploadImg(file, "gallery"));
   }
   function onZipSelect(file: File) {
     if (mode === "new") setPendingZip(file);
@@ -219,45 +229,99 @@ export default function ProductForm({
 
     try {
       if (mode === "new") {
+        // Build step list based on what files are queued
+        const steps: UploadStep[] = [
+          { key: "create", label: "Creating product", status: "uploading", progress: 0 },
+        ];
+        if (pendingThumb) steps.push({ key: "thumb", label: "Thumbnail", status: "pending", progress: 0 });
+        if (pendingHover) steps.push({ key: "hover", label: "Hover image", status: "pending", progress: 0 });
+        pendingGallery.forEach((_, i) =>
+          steps.push({ key: `gallery-${i}`, label: `Gallery image ${i + 1}`, status: "pending", progress: 0 }),
+        );
+        if (pendingZip) steps.push({ key: "zip", label: `ZIP file (${pendingZip.name})`, status: "pending", progress: 0 });
+        setUploadSteps(steps);
+
         const res = await createM.mutateAsync(payload);
         const pid = res.product.id;
+        setStep("create", { status: "done", progress: 100 });
 
-        // Upload queued files sequentially (show progress per item)
         const updates: Record<string, unknown> = {};
-        try {
-          if (pendingThumb) {
+        const failedUploads: string[] = [];
+
+        if (pendingThumb) {
+          setStep("thumb", { status: "uploading" });
+          try {
             updates.thumbnail = await uploadImg(pendingThumb.file, pid, "thumbnail", "thumb");
+            setStep("thumb", { status: "done", progress: 100 });
+          } catch {
+            failedUploads.push("thumbnail");
+            setStep("thumb", { status: "error" });
+            setP("thumb", 0);
           }
-          if (pendingHover) {
+        }
+        if (pendingHover) {
+          setStep("hover", { status: "uploading" });
+          try {
             updates.hoverImage = await uploadImg(pendingHover.file, pid, "hover", "hover");
+            setStep("hover", { status: "done", progress: 100 });
+          } catch {
+            failedUploads.push("hover image");
+            setStep("hover", { status: "error" });
+            setP("hover", 0);
           }
-          if (pendingGallery.length > 0) {
-            updates.images = await Promise.all(
-              pendingGallery.map((p, i) =>
-                uploadImg(p.file, pid, "gallery", `gallery-${i}`),
-              ),
-            );
-          }
-          if (pendingZip) {
+        }
+        if (pendingGallery.length > 0) {
+          const galleryUrls: string[] = [];
+          await Promise.all(
+            pendingGallery.map(async (pg, i) => {
+              setStep(`gallery-${i}`, { status: "uploading" });
+              try {
+                const url = await uploadImg(pg.file, pid, "gallery", `gallery-${i}`);
+                galleryUrls.push(url);
+                setStep(`gallery-${i}`, { status: "done", progress: 100 });
+              } catch {
+                failedUploads.push(`gallery image ${i + 1}`);
+                setStep(`gallery-${i}`, { status: "error" });
+                setP(`gallery-${i}`, 0);
+              }
+            }),
+          );
+          if (galleryUrls.length > 0) updates.images = galleryUrls;
+        }
+        if (pendingZip) {
+          setStep("zip", { status: "uploading" });
+          try {
             updates.fileSizeMb = await uploadZip(pendingZip, pid);
+            setStep("zip", { status: "done", progress: 100 });
+          } catch {
+            failedUploads.push("ZIP file");
+            setStep("zip", { status: "error" });
+            setP("zip", 0);
           }
-          if (Object.keys(updates).length > 0) {
-            await api.put(`/admin/products/${pid}`, { ...payload, ...updates });
-          }
-        } catch {
-          toast.error("Product created — but some uploads failed. Re-upload from the edit page.");
         }
 
-        toast.success("Product created");
-        router.push(`/products/${pid}`);
+        if (Object.keys(updates).length > 0) {
+          try {
+            await api.put(`/admin/products/${pid}`, { ...payload, ...updates });
+          } catch { /* product saved; URL patch failed — acceptable */ }
+        }
+
+        if (failedUploads.length > 0) {
+          toast.error(`Product created — failed to upload: ${failedUploads.join(", ")}. Re-upload from the edit page.`);
+        } else {
+          toast.success("Product created");
+        }
+        router.push("/products");
       } else {
         await updateM.mutateAsync(payload);
         toast.success("Saved");
+        router.push("/products");
       }
     } catch (err) {
       toast.error(apiError(err, "Save failed"));
     } finally {
       setSaving(false);
+      setUploadSteps([]);
     }
   }
 
@@ -265,8 +329,84 @@ export default function ProductForm({
   const thumbUrl = pendingThumb?.previewUrl || form.thumbnail;
   const hoverUrl = pendingHover?.previewUrl || form.hoverImage;
 
+  // Overall progress across all steps
+  const overallPct = uploadSteps.length === 0 ? 0
+    : Math.round(uploadSteps.reduce((sum, s) => sum + s.progress, 0) / uploadSteps.length);
+
   return (
     <>
+      {/* Full-page upload progress overlay */}
+      {saving && uploadSteps.length > 0 && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+            <h2 className="text-lg font-semibold text-center mb-1">
+              {overallPct < 100 ? "Uploading…" : "Finishing up…"}
+            </h2>
+            <p className="text-xs text-neutral-500 text-center mb-6">
+              Please keep this page open until complete.
+            </p>
+
+            {/* Overall bar */}
+            <div className="mb-6">
+              <div className="flex justify-between text-xs font-medium mb-1.5">
+                <span className="text-neutral-600">Overall progress</span>
+                <span className="text-indigo-600 tabular-nums">{overallPct}%</span>
+              </div>
+              <div className="h-3 bg-neutral-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                  style={{ width: `${overallPct}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Per-file steps */}
+            <div className="space-y-3">
+              {uploadSteps.map((step) => (
+                <div key={step.key}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {step.status === "done" && (
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </span>
+                      )}
+                      {step.status === "error" && (
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-rose-500 flex items-center justify-center">
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </span>
+                      )}
+                      {step.status === "uploading" && (
+                        <span className="shrink-0 w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                      )}
+                      {step.status === "pending" && (
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-neutral-200" />
+                      )}
+                      <span className={`truncate font-medium ${step.status === "error" ? "text-rose-600" : step.status === "done" ? "text-emerald-700" : "text-neutral-700"}`}>
+                        {step.label}
+                      </span>
+                    </div>
+                    <span className={`tabular-nums shrink-0 ml-2 ${step.status === "error" ? "text-rose-500" : step.status === "done" ? "text-emerald-600" : "text-neutral-500"}`}>
+                      {step.status === "error" ? "Failed" : step.status === "done" ? "Done" : step.status === "pending" ? "Queued" : `${step.progress}%`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-200 ${step.status === "error" ? "bg-rose-400" : step.status === "done" ? "bg-emerald-400" : "bg-indigo-400"}`}
+                      style={{ width: `${step.progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <Topbar title={mode === "new" ? "New product" : `Edit: ${form.title || "…"}`} />
       <div className="p-6 space-y-6 max-w-[1100px]">
 
@@ -301,28 +441,16 @@ export default function ProductForm({
         {/* Organization */}
         <section className="card p-6 space-y-4">
           <h3 className="font-semibold">Organization</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <CategorySelector
               allCats={cats.data?.data || []}
               categoryId={form.category || ""}
               subCategoryId={form.subCategory || ""}
               error={errors.category}
-              onChangeCategory={(catId, subCatId) =>
-                setForm((f) => ({ ...f, category: catId, subCategory: subCatId || null }))
+              onChangeCategory={(topLevelId, subCatId) =>
+                setForm((f) => ({ ...f, category: topLevelId, subCategory: subCatId || null }))
               }
             />
-            <Field label="Brand">
-              <select
-                className="input"
-                value={form.brand || ""}
-                onChange={(e) => set("brand", e.target.value)}
-              >
-                <option value="">Choose…</option>
-                {(brands.data?.data || []).map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </Field>
             <Field label="Status">
               <select
                 className="input"
@@ -396,11 +524,12 @@ export default function ProductForm({
               />
             ))}
 
-            {/* Add gallery slot */}
+            {/* Add gallery slot — supports multi-select */}
             <ImageSlot
               label="Add gallery"
               url={undefined}
-              onSelect={onGallerySelect}
+              onSelect={() => {}}
+              onSelectMultiple={onGallerySelect}
               badge=""
               badgeColor="neutral"
               addMore
@@ -497,6 +626,7 @@ function ImageSlot({
   url,
   progress,
   onSelect,
+  onSelectMultiple,
   onRemove,
   badge,
   badgeColor,
@@ -506,6 +636,7 @@ function ImageSlot({
   url?: string;
   progress?: number;
   onSelect: (file: File) => void;
+  onSelectMultiple?: (files: File[]) => void;
   onRemove?: () => void;
   badge: string;
   badgeColor: "neutral" | "violet";
@@ -523,8 +654,15 @@ function ImageSlot({
         ref={inputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        multiple={!!onSelectMultiple}
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) { onSelect(f); e.target.value = ""; } }}
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (!files.length) return;
+          if (onSelectMultiple) { onSelectMultiple(files); }
+          else if (files[0]) { onSelect(files[0]); }
+          e.target.value = "";
+        }}
       />
       <div
         onClick={() => inputRef.current?.click()}
@@ -725,9 +863,16 @@ function CategorySelector({
   onChangeCategory: (directCatId: string, topLevelId: string) => void;
 }) {
   const topCats = allCats.filter((c) => !c.parent);
+
+  // Support both storage formats:
+  //   New format: categoryId = parent ID,  subCategoryId = child ID
+  //   Old format: categoryId = child  ID,  subCategoryId = ""
   const directCat = allCats.find((c) => c.id === categoryId);
-  const topCatId = directCat?.parent ? directCat.parent : categoryId;
-  const selectedSubId = directCat?.parent ? categoryId : "";
+  const topCatId = directCat?.parent
+    ? directCat.parent          // old format — categoryId is a child
+    : categoryId;               // new format — categoryId is already the parent
+  const selectedSubId = subCategoryId ||
+    (directCat?.parent ? categoryId : ""); // old format fallback
   const subCats = allCats.filter((c) => c.parent === topCatId);
 
   return (
@@ -750,8 +895,9 @@ function CategorySelector({
             className="input"
             value={selectedSubId}
             onChange={(e) => {
-              if (e.target.value) onChangeCategory(e.target.value, topCatId);
-              else onChangeCategory(topCatId, "");
+              // Always call back with (parentId, subcatId) so ProductForm
+              // correctly stores category = parent, subCategory = child.
+              onChangeCategory(topCatId, e.target.value || "");
             }}
           >
             <option value="">— All —</option>
