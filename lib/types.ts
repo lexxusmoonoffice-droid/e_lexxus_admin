@@ -118,6 +118,14 @@ export interface ApiBlogPost {
   createdAt?: string;
 }
 
+export interface ApiHeroSlideStyles {
+  tagSize?: number;
+  titleSize?: number;
+  subSize?: number;
+  ctaSize?: number;
+  accentSize?: number;
+}
+
 export interface ApiHeroSlide {
   id: string;
   order: number;
@@ -129,6 +137,7 @@ export interface ApiHeroSlide {
   cta?: string;
   href?: string;
   accent?: string;
+  styles?: ApiHeroSlideStyles;
 }
 
 export interface ApiOrderItem {
