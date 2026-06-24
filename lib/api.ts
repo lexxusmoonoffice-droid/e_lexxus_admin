@@ -6,7 +6,10 @@
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api";
+// Normalise the URL: strip trailing slash, then append /api if not already present.
+// This guards against Vercel env vars set without the /api suffix.
+const _rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api").replace(/\/+$/, "");
+export const API_URL = _rawApiUrl.endsWith("/api") ? _rawApiUrl : `${_rawApiUrl}/api`;
 
 const ACCESS_KEY = "lexxus-admin-access";
 const REFRESH_KEY = "lexxus-admin-refresh";
