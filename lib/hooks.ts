@@ -291,6 +291,14 @@ export function useAdminHeroSlides() {
   });
 }
 
+export function useAdminHeroSlide(id: string) {
+  return useQuery({
+    queryKey: ["admin", "hero-slides", id],
+    queryFn: () => apiGet<{ slide: ApiHeroSlide }>(`/admin/hero-slides/${id}`),
+    enabled: !!id,
+  });
+}
+
 export function useCreateHeroSlide() {
   const qc = useQueryClient();
   return useMutation({
