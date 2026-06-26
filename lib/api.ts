@@ -144,3 +144,18 @@ export function apiError(err: unknown, fallback = "Something went wrong"): strin
   const e = err as AxiosError<{ error?: string; message?: string }>;
   return e?.response?.data?.error || e?.response?.data?.message || e?.message || fallback;
 }
+
+/**
+ * Rewrite localhost proxy image URLs to the current backend API URL.
+ * Products uploaded when PUBLIC_API_URL was set to localhost on the
+ * production backend have thumbnails saved as http://localhost:5050/api/…
+ * which browsers on the live domain cannot reach.
+ */
+export function fixImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)) {
+    const path = url.replace(/^https?:\/\/[^/]+/, '');
+    return API_URL.replace(/\/api$/, '') + path;
+  }
+  return url;
+}

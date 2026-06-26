@@ -7,7 +7,8 @@ import toast from "react-hot-toast";
 import { Plus, Trash2 } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import { confirm } from "@/components/ConfirmDialog";
-import { useAdminProducts, useDeleteProduct, usePatchProductStatus, apiError } from "@/lib/hooks";
+import { useAdminProducts, useDeleteProduct, usePatchProductStatus, useBulkProductAction, apiError } from "@/lib/hooks";
+import { fixImageUrl, apiGet } from "@/lib/api";
 
 const FILTER_STATUSES = ["All", "published", "draft", "review", "removed"];
 const STATUS_OPTIONS = ["published", "draft", "review", "removed"];
@@ -30,6 +31,23 @@ export default function ProductsPage() {
   const { data, isLoading, isError } = useAdminProducts(params);
   const del = useDeleteProduct();
   const patchStatus = usePatchProductStatus();
+  const bulk = useBulkProductAction();
+  const [publishing, setPublishing] = useState(false);
+
+  async function onPublishAllDrafts() {
+    setPublishing(true);
+    try {
+      const res = await apiGet<{ data: { id: string; status: string }[] }>("/admin/products?status=draft&limit=1000");
+      const ids = res.data.map((p) => p.id);
+      if (!ids.length) { toast("No draft products found"); return; }
+      const result = await bulk.mutateAsync({ ids, action: "publish" });
+      toast.success(`Published ${result.affected} product${result.affected !== 1 ? "s" : ""}`);
+    } catch (err) {
+      toast.error(apiError(err));
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   async function onDelete(e: React.MouseEvent, id: string, name: string) {
     e.stopPropagation();
@@ -76,9 +94,18 @@ export default function ProductsPage() {
               {FILTER_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
-          <Link href="/products/new" className="btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Add Product
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onPublishAllDrafts}
+              disabled={publishing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 transition"
+            >
+              {publishing ? "Publishing…" : "Publish all drafts"}
+            </button>
+            <Link href="/products/new" className="btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Add Product
+            </Link>
+          </div>
         </div>
 
         <div className="text-xs text-neutral-400 mb-3">
@@ -117,7 +144,7 @@ export default function ProductsPage() {
                     <td className="table-td">
                       <div className="flex items-center gap-3">
                         {p.thumbnail && (
-                          <img src={p.thumbnail} className="w-10 h-10 rounded object-cover shrink-0" alt={p.title} />
+                          <img src={fixImageUrl(p.thumbnail) ?? ""} className="w-10 h-10 rounded object-cover shrink-0" alt={p.title} />
                         )}
                         <div>
                           <div className="font-medium">{p.title}</div>
