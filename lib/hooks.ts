@@ -13,6 +13,7 @@ import type {
   ApiOrder,
   ApiProduct,
   ApiSettings,
+  ApiSocialLink,
   ApiUser,
   DashboardStats,
   Paginated,
@@ -461,6 +462,42 @@ export function useUpdateSettings() {
   });
 }
 
+export function useAdminSocialLinks() {
+  return useQuery({
+    queryKey: ["admin", "social-links"],
+    queryFn: async () => {
+      const res = await apiGet<{ links: ApiSocialLink[] }>("/admin/social-links");
+      return res.links || [];
+    },
+  });
+}
+
+export function useCreateSocialLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<ApiSocialLink>) =>
+      apiPost<{ link: ApiSocialLink }>("/admin/social-links", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "social-links"] }),
+  });
+}
+
+export function useUpdateSocialLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Partial<ApiSocialLink> }) =>
+      apiPut<{ link: ApiSocialLink }>(`/admin/social-links/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "social-links"] }),
+  });
+}
+
+export function useDeleteSocialLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/admin/social-links/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "social-links"] }),
+  });
+}
+
 export function useAuditLog(params: Record<string, unknown> = {}) {
   return useQuery({
     queryKey: ["admin", "audit-log", params],
@@ -502,6 +539,45 @@ export function useDeleteAdminReview() {
   return useMutation({
     mutationFn: (id: string) => apiDelete(`/admin/reviews/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "reviews"] }),
+  });
+}
+
+/* ─── inquiries moderation ───────────────────────────── */
+
+export type ApiInquiry = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  topic: string;
+  subject: string;
+  message: string;
+  status: "unread" | "read";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function useAdminInquiries(params: Record<string, unknown> = {}) {
+  return useQuery({
+    queryKey: ["admin", "inquiries", params],
+    queryFn: () => apiGet<Paginated<ApiInquiry>>("/admin/inquiries", params),
+  });
+}
+
+export function usePatchInquiryStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "unread" | "read" }) =>
+      apiPatch<{ inquiry: ApiInquiry }>(`/admin/inquiries/${id}/status`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "inquiries"] }),
+  });
+}
+
+export function useDeleteInquiry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/admin/inquiries/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "inquiries"] }),
   });
 }
 

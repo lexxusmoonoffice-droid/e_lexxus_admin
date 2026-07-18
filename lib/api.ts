@@ -59,10 +59,12 @@ export const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const t = getAccessToken();
+  config.headers = config.headers || {};
   if (t) {
-    config.headers = config.headers || {};
     (config.headers as Record<string, string>).Authorization = `Bearer ${t}`;
   }
+  // Prevent browser disk cache from serving stale API responses
+  (config.headers as Record<string, string>)["Cache-Control"] = "no-cache";
   return config;
 });
 

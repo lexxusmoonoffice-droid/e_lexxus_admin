@@ -181,6 +181,20 @@ export interface ApiSettings {
   social?: Record<string, string>;
   seo?: Record<string, string>;
   legal?: Record<string, string>;
+  contact?: {
+    email?: string;
+    phone?: string;
+    address?: string;
+    hours?: string;
+    locationLabel?: string;
+    locationImage?: string;
+    responseTimes?: {
+      general?: string;
+      technical?: string;
+      billing?: string;
+      partnerships?: string;
+    };
+  };
 }
 
 export interface ApiNotification {
@@ -203,4 +217,12 @@ export interface ApiAuditLog {
   after?: unknown;
   ip?: string;
   createdAt: string;
+}
+
+export interface ApiSocialLink {
+  id: string;
+  platform: string;
+  url: string;
+  active: boolean;
+  order: number;
 }

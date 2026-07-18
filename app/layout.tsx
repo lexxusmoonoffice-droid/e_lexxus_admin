@@ -7,7 +7,14 @@ import ConfirmContainer from "@/components/ConfirmDialog";
 import { AuthProvider } from "@/lib/auth";
 import { QueryProvider } from "@/lib/query-provider";
 
-export const metadata = { title: "Lexxus Admin" };
+export const metadata = {
+  title: "Lexxus Admin",
+  icons: {
+    icon: "/lexxus logo.webp",
+    shortcut: "/lexxus logo.webp",
+    apple: "/lexxus logo.webp",
+  },
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

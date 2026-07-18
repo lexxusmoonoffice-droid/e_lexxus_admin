@@ -1,0 +1,14 @@
+
+> lexxus-admin@0.1.0 dev
+> node scripts/pick-port-and-run.cjs --base-port 3001 -- next dev -p {PORT}
+
+[dev] using port 3001
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 6.9s
+ ○ Compiling / ...
+ ✓ Compiled / in 8.2s (865 modules)
+[?25h
