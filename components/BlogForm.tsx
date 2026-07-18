@@ -117,14 +117,19 @@ export default function BlogForm({
         <section className="card p-6 space-y-4">
           <h3 className="font-semibold">Featured image</h3>
           {form.image ? (
-            <ImageChip url={form.image} onRemove={() => setForm({ ...form, image: undefined })} />
+            <div className="space-y-4">
+              <ImageChip url={form.image} onRemove={() => setForm({ ...form, image: undefined })} />
+            </div>
           ) : (
-            <p className="text-xs text-neutral-500">No image yet.</p>
-          )}
-          {mode === "edit" && existing ? (
-            <ImageUploader kind="blog" refId={existing.id} label="Upload featured image" onUploaded={(url) => setForm({ ...form, image: url })} />
-          ) : (
-            <p className="text-xs text-neutral-500">Save the post first, then come back to upload an image.</p>
+            <div className="space-y-4">
+              <p className="text-xs text-neutral-500">No image yet.</p>
+              <ImageUploader
+                kind="blog"
+                refId={existing?.id}
+                label="Upload featured image"
+                onUploaded={(url) => setForm({ ...form, image: url })}
+              />
+            </div>
           )}
         </section>
 

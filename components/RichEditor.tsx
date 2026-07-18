@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import { api, apiError } from "@/lib/api";
 import {
   AlignCenter,
   AlignLeft,
@@ -17,6 +19,8 @@ import {
   Strikethrough,
   Underline,
   Undo2,
+  Image,
+  Video,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -70,6 +74,8 @@ const TOOLS: Tool[] = [
   { type: "color", cmd: "hiliteColor", title: "Highlight color", defaultColor: "#fef08a" },
   { type: "sep" },
   { type: "btn", icon: Link,  cmd: "__link__", title: "Insert link"  },
+  { type: "btn", icon: Image, cmd: "__image__", title: "Insert image" },
+  { type: "btn", icon: Video, cmd: "__video__", title: "Insert video" },
   { type: "sep" },
   { type: "btn", icon: Undo2, cmd: "undo", title: "Undo (Ctrl+Z)" },
   { type: "btn", icon: Redo2, cmd: "redo", title: "Redo (Ctrl+Y)" },
@@ -140,6 +146,7 @@ export default function RichEditor({
 
   const fgInputRef = useRef<HTMLInputElement>(null);
   const hlRef      = useRef<HTMLInputElement>(null);
+  const richImageInputRef = useRef<HTMLInputElement>(null);
 
   /* ── Mount ──────────────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -199,6 +206,61 @@ export default function RichEditor({
     onChange(html);
   }, [onChange, refreshActive]);
 
+  const insertHtml = useCallback((htmlString: string) => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+
+      const div = document.createElement("div");
+      div.innerHTML = htmlString;
+      const fragment = document.createDocumentFragment();
+      let node;
+      while ((node = div.firstChild)) {
+        fragment.appendChild(node);
+      }
+      range.insertNode(fragment);
+
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      emitChange();
+    } else {
+      el.innerHTML += htmlString;
+      emitChange();
+    }
+  }, [emitChange]);
+
+  async function handleRichImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const toastId = toast.loading("Uploading image...");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("kind", "blog");
+      const res = await api.post<{ urls: { original: string; full?: string } }>("/uploads/image", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const url = res.data.urls.full || res.data.urls.original;
+      insertHtml(`<img src="${url}" alt="" class="max-w-full my-4 rounded inline-block" />`);
+      toast.success("Image inserted", { id: toastId });
+    } catch (err) {
+      toast.error(apiError(err, "Upload failed"), { id: toastId });
+    } finally {
+      if (richImageInputRef.current) richImageInputRef.current.value = "";
+    }
+  }
+
+  function triggerImageUpload() {
+    richImageInputRef.current?.click();
+  }
+
   /* ── Execute command ────────────────────────────────────────────────────── */
   function exec(cmd: string, val?: string) {
     const el = editorRef.current;
@@ -209,6 +271,52 @@ export default function RichEditor({
       el.focus();
       document.execCommand("createLink", false, url);
       emitChange();
+      return;
+    }
+    if (cmd === "__image__") {
+      const url = window.prompt("Enter image URL (or press Cancel to upload from computer):");
+      if (url === null) {
+        triggerImageUpload();
+        return;
+      }
+      if (url.trim()) {
+        insertHtml(`<img src="${url.trim()}" alt="" class="max-w-full my-4 rounded inline-block" />`);
+        return;
+      }
+      triggerImageUpload();
+      return;
+    }
+    if (cmd === "__video__") {
+      const url = window.prompt("Enter video URL (YouTube link, Vimeo link, or direct mp4/webm URL):");
+      if (!url) return;
+
+      let html = "";
+      if (url.includes("youtube.com/watch") || url.includes("youtu.be")) {
+        let videoId = "";
+        if (url.includes("youtube.com/watch")) {
+          try {
+            videoId = new URL(url).searchParams.get("v") || "";
+          } catch {
+            videoId = "";
+          }
+        } else {
+          videoId = url.split("/").pop() || "";
+        }
+        if (videoId) {
+          html = `<div class="aspect-video my-4"><iframe src="https://www.youtube.com/embed/${videoId}" class="w-full h-full rounded" frameborder="0" allowfullscreen></iframe></div>`;
+        }
+      } else if (url.includes("vimeo.com")) {
+        const videoId = url.split("/").pop() || "";
+        if (videoId) {
+          html = `<div class="aspect-video my-4"><iframe src="https://player.vimeo.com/video/${videoId}" class="w-full h-full rounded" frameborder="0" allowfullscreen></iframe></div>`;
+        }
+      } else {
+        html = `<video src="${url}" controls class="w-full my-4 rounded"></video>`;
+      }
+
+      if (html) {
+        insertHtml(html);
+      }
       return;
     }
     el.focus();
@@ -359,6 +467,13 @@ export default function RichEditor({
       </div>
 
       {name && <input type="hidden" name={name} value={value ?? ""} readOnly />}
+      <input
+        ref={richImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleRichImageUpload}
+      />
     </div>
   );
 }

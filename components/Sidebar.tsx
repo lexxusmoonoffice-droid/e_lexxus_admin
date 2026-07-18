@@ -21,6 +21,7 @@ import {
   UserCircle,
   HardDrive,
   ChevronDown,
+  Mail,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/lib/auth";
@@ -47,6 +48,7 @@ const nav: NavItem[] = [
   },
   { icon: Image, label: "Hero Slides", href: "/hero" },
   { icon: Users, label: "Users", href: "/users" },
+  { icon: Mail, label: "Inquiries", href: "/inquiries" },
   { icon: Tag, label: "Brands", href: "/brands" },
   { icon: FileText, label: "Blog", href: "/blog" },
   { icon: ScrollText, label: "Audit log", href: "/audit" },

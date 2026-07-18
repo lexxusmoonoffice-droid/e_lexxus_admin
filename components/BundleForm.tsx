@@ -55,7 +55,62 @@ export default function BundleForm({
     if (existing) setForm(toForm(existing));
   }, [existing]);
 
-  const products = useAdminProducts({ limit: 200, status: "published" });
+  const products = useAdminProducts({ limit: 20000, status: "published" });
+  const [prodSearch, setProdSearch] = useState("");
+  const [prodCategory, setProdCategory] = useState("All");
+  const [prodBrand, setProdBrand] = useState("All");
+  const [prodPriceFilter, setProdPriceFilter] = useState("All");
+
+  const categoriesList = useMemo(() => {
+    if (!products.data) return [];
+    const set = new Set<string>();
+    products.data.data.forEach((p) => {
+      const cat = typeof p.category === "string" ? p.category : p.category?.name;
+      if (cat) set.add(cat);
+    });
+    return Array.from(set).sort();
+  }, [products.data]);
+
+  const brandsList = useMemo(() => {
+    if (!products.data) return [];
+    const set = new Set<string>();
+    products.data.data.forEach((p) => {
+      const brand = typeof p.brand === "string" ? p.brand : p.brand?.name;
+      if (brand) set.add(brand);
+    });
+    return Array.from(set).sort();
+  }, [products.data]);
+
+  const filteredProducts = useMemo(() => {
+    if (!products.data) return [];
+    return products.data.data.filter((p) => {
+      const brandName = (typeof p.brand === "string" ? p.brand : p.brand?.name || "").toLowerCase();
+      const catName = (typeof p.category === "string" ? p.category : p.category?.name || "").toLowerCase();
+      const titleLower = p.title.toLowerCase();
+      const searchLower = prodSearch.toLowerCase();
+
+      const matchesSearch =
+        !prodSearch ||
+        titleLower.includes(searchLower) ||
+        brandName.includes(searchLower) ||
+        catName.includes(searchLower);
+
+      const matchesCategory =
+        prodCategory === "All" ||
+        catName === prodCategory.toLowerCase();
+
+      const matchesBrand =
+        prodBrand === "All" ||
+        brandName === prodBrand.toLowerCase();
+
+      const matchesPrice =
+        prodPriceFilter === "All" ||
+        (prodPriceFilter === "Free" ? p.price === 0 : p.price > 0);
+
+      return matchesSearch && matchesCategory && matchesBrand && matchesPrice;
+    });
+  }, [products.data, prodSearch, prodCategory, prodBrand, prodPriceFilter]);
+
   const createM = useCreateBundle();
   const updateM = useUpdateBundle(existing?.id || "");
 
@@ -185,10 +240,54 @@ export default function BundleForm({
         <section className="card p-6 space-y-4">
           <h3 className="font-semibold">Included products <span className="text-rose-600">*</span></h3>
           <div className={`text-xs ${errors.products ? "text-rose-600" : "text-neutral-500"}`}>
-            {errors.products || `${form.productIds.length} selected · Original total ₹${original.toLocaleString("en-IN")}`}
+            {errors.products || `${form.productIds.length} selected · Original total ₹${original.toLocaleString("en-IN")} · Showing ${filteredProducts.length} of ${products.data?.data?.length || 0} products`}
           </div>
+
+          {/* Search and Filters Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-3">
+            <input
+              type="text"
+              placeholder="Search products in list…"
+              className="input text-xs py-1.5 px-3 w-full"
+              value={prodSearch}
+              onChange={(e) => setProdSearch(e.target.value)}
+            />
+            <select
+              className="input text-xs py-1.5 px-3 w-full bg-white"
+              value={prodCategory}
+              onChange={(e) => setProdCategory(e.target.value)}
+            >
+              <option value="All">All Categories</option>
+              {categoriesList.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <select
+              className="input text-xs py-1.5 px-3 w-full bg-white"
+              value={prodBrand}
+              onChange={(e) => setProdBrand(e.target.value)}
+            >
+              <option value="All">All Brands</option>
+              {brandsList.map((brand) => (
+                <option key={brand} value={brand}>{brand}</option>
+              ))}
+            </select>
+            <select
+              className="input text-xs py-1.5 px-3 w-full bg-white"
+              value={prodPriceFilter}
+              onChange={(e) => setProdPriceFilter(e.target.value)}
+            >
+              <option value="All">All Prices</option>
+              <option value="Free">Free</option>
+              <option value="Paid">Paid</option>
+            </select>
+          </div>
+
           <div className="max-h-[360px] overflow-y-auto border border-neutral-200 rounded">
-            {(products.data?.data || []).map((p) => {
+            {filteredProducts.length === 0 && (
+              <div className="p-6 text-center text-xs text-neutral-400">No products found</div>
+            )}
+            {filteredProducts.map((p) => {
               const checked = form.productIds.includes(p.id);
               const brand = typeof p.brand === "string" ? p.brand : p.brand?.name;
               const cat = typeof p.category === "string" ? p.category : p.category?.name;
